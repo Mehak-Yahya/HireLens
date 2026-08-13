@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+
 import connectDB from "./config/db.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
@@ -9,17 +10,30 @@ dotenv.config();
 
 const app = express();
 
+// =====================================================
+// MIDDLEWARE
+// =====================================================
+
 app.use(cors());
 app.use(express.json());
 
-// MongoDB
+// =====================================================
+// DATABASE
+// =====================================================
+
 connectDB();
 
-// Routes
+// =====================================================
+// ROUTES
+// =====================================================
+
 app.use("/api/jobs", jobRoutes);
 app.use("/api/search", searchRoutes);
 
-// Home
+// =====================================================
+// HOME / HEALTH CHECK
+// =====================================================
+
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -27,8 +41,37 @@ app.get("/", (req, res) => {
   });
 });
 
+// =====================================================
+// 404 HANDLER
+// =====================================================
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found"
+  });
+});
+
+// =====================================================
+// ERROR HANDLER
+// =====================================================
+
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+
+  res.status(500).json({
+    success: false,
+    message: "Internal server error"
+  });
+});
+
+// =====================================================
+// START SERVER
+// =====================================================
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`HireLens server running on port ${PORT}`);
 });
+
