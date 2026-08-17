@@ -8,19 +8,13 @@ import careerSources from "./careerSources.js";
 // SEARCH ALL JOB SOURCES
 // =====================================================
 
-const searchAllSources = async ({
-  keyword,
-  location
-}) => {
+const searchAllSources = async ({ keyword, location }) => {
   try {
     // -------------------------------------------------
     // VALIDATE INPUT
     // -------------------------------------------------
 
-    if (
-      !keyword ||
-      typeof keyword !== "string"
-    ) {
+    if (!keyword || typeof keyword !== "string") {
       console.error("Invalid keyword");
       return [];
     }
@@ -34,9 +28,7 @@ const searchAllSources = async ({
       return [];
     }
 
-    const sourceList = Object.values(
-      sources
-    ).filter(
+    const sourceList = Object.values(sources).filter(
       (source) =>
         source &&
         typeof source.search === "function"
@@ -52,48 +44,32 @@ const searchAllSources = async ({
     // SEARCH ALL SOURCES IN PARALLEL
     // =================================================
 
-    const results =
-      await Promise.allSettled(
-        sourceList.map(
-          async (source) => {
-            console.log(
-              `Running source scraper: ${source.name}`
-            );
+    const results = await Promise.allSettled(
+      sourceList.map(async (source) => {
+        console.log(
+          `Running source scraper: ${source.name}`
+        );
 
-            try {
-              /*
-               * Pass careerSources as well.
-               *
-               * Greenhouse uses this to identify
-               * dynamically discovered Greenhouse
-               * boards.
-               *
-               * Other scrapers simply ignore it.
-               */
-              const sourceJobs =
-                await source.search({
-                  keyword,
-                  location,
-                  sources: careerSources
-                });
+        try {
+          const sourceJobs = await source.search({
+            keyword,
+            location,
+            sources: careerSources
+          });
 
-              return Array.isArray(
-                sourceJobs
-              )
-                ? sourceJobs
-                : [];
+          return Array.isArray(sourceJobs)
+            ? sourceJobs
+            : [];
+        } catch (error) {
+          console.error(
+            `${source.name} error:`,
+            error.message
+          );
 
-            } catch (error) {
-              console.error(
-                `${source.name} error:`,
-                error.message
-              );
-
-              return [];
-            }
-          }
-        )
-      );
+          return [];
+        }
+      })
+    );
 
     // =================================================
     // NORMALIZE RESULTS
@@ -101,64 +77,49 @@ const searchAllSources = async ({
 
     const jobs = [];
 
-    results.forEach(
-      (result, index) => {
-        const source =
-          sourceList[index];
+    results.forEach((result, index) => {
+      const source = sourceList[index];
 
-        if (
-          result.status !==
-          "fulfilled"
-        ) {
-          console.error(
-            `${source.name} search failed:`,
-            result.reason?.message ||
-              result.reason ||
-              "Unknown error"
-          );
-
-          return;
-        }
-
-        const sourceJobs =
-          Array.isArray(
-            result.value
-          )
-            ? result.value
-            : [];
-
-        if (
-          sourceJobs.length === 0
-        ) {
-          console.log(
-            `${source.name}: 0 jobs returned`
-          );
-
-          return;
-        }
-
-        const normalizedJobs =
-          normalizeJobs(
-            sourceJobs,
-            source.name
-          );
-
-        console.log(
-          `${source.name}: ${normalizedJobs.length} valid jobs after normalization`
+      if (result.status !== "fulfilled") {
+        console.error(
+          `${source.name} search failed:`,
+          result.reason?.message ||
+            result.reason ||
+            "Unknown error"
         );
 
-        jobs.push(
-          ...normalizedJobs
-        );
+        return;
       }
-    );
+
+      const sourceJobs = Array.isArray(result.value)
+        ? result.value
+        : [];
+
+      if (sourceJobs.length === 0) {
+        console.log(
+          `${source.name}: 0 jobs returned`
+        );
+
+        return;
+      }
+
+      const normalizedJobs = normalizeJobs(
+        sourceJobs,
+        source.name
+      );
+
+      console.log(
+        `${source.name}: ${normalizedJobs.length} valid jobs after normalization`
+      );
+
+      jobs.push(...normalizedJobs);
+    });
 
     // =================================================
     // DEDUPLICATE
     // =================================================
 
-    const uniqueJobs =
-      deduplicateJobs(jobs);
+    const uniqueJobs = deduplicateJobs(jobs);
 
     console.log(
       `Found ${jobs.length} normalized jobs`
@@ -169,27 +130,26 @@ const searchAllSources = async ({
     );
 
     // =================================================
-    // SAVE TO DATABASE IN BACKGROUND
+    // SAVE TO MONGODB
     // =================================================
 
-    if (
-      uniqueJobs.length > 0
-    ) {
-      saveJobsToDatabase(
+    if (uniqueJobs.length > 0) {
+      const saveResult = await saveJobsToDatabase(
         uniqueJobs
-      ).catch(
-        (error) => {
-          console.error(
-            "Background job save failed:",
-            error.message
-          );
-        }
+      );
+
+      console.log(
+        `MongoDB: ${saveResult.saved} saved, ${saveResult.failed} failed`
+      );
+    } else {
+      console.log(
+        "No jobs to save to MongoDB."
       );
     }
 
-    // -------------------------------------------------
-    // RETURN IMMEDIATELY
-    // -------------------------------------------------
+    // =================================================
+    // RETURN JOBS
+    // =================================================
 
     return uniqueJobs;
 
@@ -204,280 +164,293 @@ const searchAllSources = async ({
 };
 
 // =====================================================
-// SAVE JOBS TO DATABASE
+// SAVE JOBS TO MONGODB
 // =====================================================
 
-const saveJobsToDatabase =
-  async (uniqueJobs) => {
-    let savedCount = 0;
-    let failedCount = 0;
+const saveJobsToDatabase = async (uniqueJobs) => {
+  let savedCount = 0;
+  let failedCount = 0;
 
-    for (
-      const job of uniqueJobs
-    ) {
-      try {
-        // ---------------------------------------------
-        // VALIDATE
-        // ---------------------------------------------
+  for (const job of uniqueJobs) {
+    try {
+      // -------------------------------------------------
+      // VALIDATE JOB
+      // -------------------------------------------------
 
-        if (
-          !job?.jobKey ||
-          !job?.sourceUrl
-        ) {
-          console.warn(
-            "Skipping invalid job:",
-            job?.title ||
-              "Unknown title"
-          );
+      if (
+        !job?.jobKey ||
+        !job?.title ||
+        !job?.company ||
+        !job?.sourceUrl
+      ) {
+        console.warn(
+          "Skipping invalid job:",
+          job?.title || "Unknown title"
+        );
 
-          failedCount++;
-          continue;
-        }
+        failedCount++;
+        continue;
+      }
 
-        // ---------------------------------------------
-        // FIND EXISTING JOB
-        // ---------------------------------------------
+      // -------------------------------------------------
+      // UPSERT JOB
+      // -------------------------------------------------
 
-        const existingJob =
-          await Job.findOne({
-            jobKey: job.jobKey
-          });
+      const existingJob = await Job.findOne({
+        jobKey: job.jobKey
+      });
 
-        // =================================================
-        // CREATE NEW JOB
-        // =================================================
+      // =================================================
+      // NEW JOB
+      // =================================================
 
-        if (!existingJob) {
-          await Job.create({
-            ...job,
+      if (!existingJob) {
+        await Job.create({
+          jobKey: job.jobKey,
 
-            sources:
-              job.sources?.length
-                ? job.sources
-                : [
-                    job.source ||
-                      "Unknown"
-                  ],
+          title: job.title,
 
-            scrapedAt:
-              new Date(),
+          company: job.company,
 
-            isActive:
-              true
-          });
+          location:
+            job.location || "Not specified",
 
-          savedCount++;
+          description:
+            job.description || "",
 
-          console.log(
-            `NEW JOB: ${job.title} - ${job.company}`
-          );
-
-          continue;
-        }
-
-        // =================================================
-        // UPDATE EXISTING JOB
-        // =================================================
-
-        // -----------------------------------------------
-        // SOURCES
-        // -----------------------------------------------
-
-        const existingSources =
-          Array.isArray(
-            existingJob.sources
-          )
-            ? existingJob.sources
-            : [];
-
-        const incomingSources =
-          Array.isArray(
-            job.sources
-          ) &&
-          job.sources.length > 0
-            ? job.sources
-            : [
-                job.source ||
-                  "Unknown"
-              ];
-
-        existingJob.sources = [
-          ...new Set(
-            [
-              ...existingSources,
-              ...incomingSources
-            ].filter(Boolean)
-          )
-        ];
-
-        // -----------------------------------------------
-        // BASIC INFORMATION
-        // -----------------------------------------------
-
-        if (job.title) {
-          existingJob.title =
-            job.title;
-        }
-
-        if (job.company) {
-          existingJob.company =
-            job.company;
-        }
-
-        if (job.location) {
-          existingJob.location =
-            job.location;
-        }
-
-        // -----------------------------------------------
-        // DESCRIPTION
-        // -----------------------------------------------
-
-        if (
-          job.description &&
-          (
-            !existingJob.description ||
-            job.description.length >
-              existingJob.description.length
-          )
-        ) {
-          existingJob.description =
-            job.description;
-        }
-
-        // -----------------------------------------------
-        // SKILLS
-        // -----------------------------------------------
-
-        existingJob.skills = [
-          ...new Set([
-            ...(Array.isArray(
-              existingJob.skills
-            )
-              ? existingJob.skills
-              : []),
-
-            ...(Array.isArray(
-              job.skills
-            )
+          skills:
+            Array.isArray(job.skills)
               ? job.skills
-              : [])
-          ])
-        ];
+              : [],
 
-        // -----------------------------------------------
-        // EMPLOYMENT TYPE
-        // -----------------------------------------------
+          employmentType:
+            job.employmentType ||
+            "Not specified",
 
-        if (
-          job.employmentType &&
-          job.employmentType !==
-            "Not specified"
-        ) {
-          existingJob.employmentType =
-            job.employmentType;
-        }
+          experienceLevel:
+            job.experienceLevel ||
+            "Not specified",
 
-        // -----------------------------------------------
-        // EXPERIENCE LEVEL
-        // -----------------------------------------------
+          salary:
+            job.salary ||
+            "Not specified",
 
-        if (
-          job.experienceLevel &&
-          job.experienceLevel !==
-            "Not specified"
-        ) {
-          existingJob.experienceLevel =
-            job.experienceLevel;
-        }
+          source:
+            job.source ||
+            "Unknown",
 
-        // -----------------------------------------------
-        // SALARY
-        // -----------------------------------------------
+          sourceUrl:
+            job.sourceUrl,
 
-        if (
-          job.salary &&
-          job.salary !==
-            "Not specified"
-        ) {
-          existingJob.salary =
-            job.salary;
-        }
+          sources:
+            Array.isArray(job.sources) &&
+            job.sources.length > 0
+              ? job.sources
+              : [
+                  job.source ||
+                    "Unknown"
+                ],
 
-        // -----------------------------------------------
-        // POSTED DATE
-        // -----------------------------------------------
+          postedAt:
+            job.postedAt || null,
 
-        if (
-          job.postedAt &&
-          !existingJob.postedAt
-        ) {
-          existingJob.postedAt =
-            job.postedAt;
-        }
+          scrapedAt:
+            new Date(),
 
-        // -----------------------------------------------
-        // SOURCE URL
-        // -----------------------------------------------
-
-        if (
-          !existingJob.sourceUrl &&
-          job.sourceUrl
-        ) {
-          existingJob.sourceUrl =
-            job.sourceUrl;
-        }
-
-        // -----------------------------------------------
-        // REMOTE
-        // -----------------------------------------------
-
-        if (
-          job.remote === true
-        ) {
-          existingJob.remote =
-            true;
-        }
-
-        // -----------------------------------------------
-        // SCRAPE STATUS
-        // -----------------------------------------------
-
-        existingJob.scrapedAt =
-          new Date();
-
-        existingJob.isActive =
-          true;
-
-        // -----------------------------------------------
-        // SAVE
-        // -----------------------------------------------
-
-        await existingJob.save();
+          isActive:
+            true
+        });
 
         savedCount++;
 
         console.log(
-          `UPDATED JOB: ${existingJob.title} - ${existingJob.company}`
+          `NEW JOB SAVED: ${job.title} - ${job.company}`
         );
 
-      } catch (error) {
-        failedCount++;
-
-        console.error(
-          `Failed to save job: ${
-            job?.title ||
-            "Unknown title"
-          }`,
-          error.message
-        );
+        continue;
       }
-    }
 
-    console.log(
-      `Database save complete: ${savedCount} saved, ${failedCount} failed`
-    );
+      // =================================================
+      // EXISTING JOB
+      // =================================================
+
+      // -------------------------------------------------
+      // SOURCES
+      // -------------------------------------------------
+
+      const existingSources =
+        Array.isArray(existingJob.sources)
+          ? existingJob.sources
+          : [];
+
+      const incomingSources =
+        Array.isArray(job.sources) &&
+        job.sources.length > 0
+          ? job.sources
+          : [
+              job.source ||
+                "Unknown"
+            ];
+
+      existingJob.sources = [
+        ...new Set([
+          ...existingSources,
+          ...incomingSources
+        ].filter(Boolean))
+      ];
+
+      // -------------------------------------------------
+      // BASIC INFORMATION
+      // -------------------------------------------------
+
+      if (job.title) {
+        existingJob.title =
+          job.title;
+      }
+
+      if (job.company) {
+        existingJob.company =
+          job.company;
+      }
+
+      if (job.location) {
+        existingJob.location =
+          job.location;
+      }
+
+      // -------------------------------------------------
+      // DESCRIPTION
+      // -------------------------------------------------
+
+      if (
+        job.description &&
+        (
+          !existingJob.description ||
+          job.description.length >
+            existingJob.description.length
+        )
+      ) {
+        existingJob.description =
+          job.description;
+      }
+
+      // -------------------------------------------------
+      // SKILLS
+      // -------------------------------------------------
+
+      existingJob.skills = [
+        ...new Set([
+          ...(Array.isArray(existingJob.skills)
+            ? existingJob.skills
+            : []),
+
+          ...(Array.isArray(job.skills)
+            ? job.skills
+            : [])
+        ])
+      ];
+
+      // -------------------------------------------------
+      // EMPLOYMENT TYPE
+      // -------------------------------------------------
+
+      if (
+        job.employmentType &&
+        job.employmentType !==
+          "Not specified"
+      ) {
+        existingJob.employmentType =
+          job.employmentType;
+      }
+
+      // -------------------------------------------------
+      // EXPERIENCE
+      // -------------------------------------------------
+
+      if (
+        job.experienceLevel &&
+        job.experienceLevel !==
+          "Not specified"
+      ) {
+        existingJob.experienceLevel =
+          job.experienceLevel;
+      }
+
+      // -------------------------------------------------
+      // SALARY
+      // -------------------------------------------------
+
+      if (
+        job.salary &&
+        job.salary !==
+          "Not specified"
+      ) {
+        existingJob.salary =
+          job.salary;
+      }
+
+      // -------------------------------------------------
+      // POSTED DATE
+      // -------------------------------------------------
+
+      if (job.postedAt) {
+        existingJob.postedAt =
+          job.postedAt;
+      }
+
+      // -------------------------------------------------
+      // SOURCE URL
+      // -------------------------------------------------
+
+      if (job.sourceUrl) {
+        existingJob.sourceUrl =
+          job.sourceUrl;
+      }
+
+      // -------------------------------------------------
+      // SCRAPE STATUS
+      // -------------------------------------------------
+
+      existingJob.scrapedAt =
+        new Date();
+
+      existingJob.isActive =
+        true;
+
+      // -------------------------------------------------
+      // SAVE
+      // -------------------------------------------------
+
+      await existingJob.save();
+
+      savedCount++;
+
+      console.log(
+        `UPDATED JOB: ${existingJob.title} - ${existingJob.company}`
+      );
+
+    } catch (error) {
+      failedCount++;
+
+      console.error(
+        `Failed to save job: ${
+          job?.title ||
+          "Unknown title"
+        }`,
+        error.message
+      );
+    }
+  }
+
+  console.log(
+    `Database save complete: ${savedCount} saved, ${failedCount} failed`
+  );
+
+  return {
+    saved: savedCount,
+    failed: failedCount
   };
+};
 
 // =====================================================
 // EXPORT
