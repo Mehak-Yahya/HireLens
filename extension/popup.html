@@ -1,0 +1,127 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>HireLens</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+
+<body>
+
+  <div class="app">
+    <header class="header">
+
+      <div class="brand">
+        <div class="brand-icon">
+          H
+        </div>
+
+        <div>
+          <h1>HireLens</h1>
+          <p>Job Assistant</p>
+        </div>
+      </div>
+
+      <div class="status">
+        <span class="status-dot"></span>
+        <span>Ready</span>
+      </div>
+
+    </header>
+    <!-- CURRENT PAGE -->
+    <section class="current-job">
+      <div class="section-header">
+        <h2>Current Job</h2>
+        <span id="pageStatus" class="badge">
+          Detecting...
+        </span>
+      </div>
+      <div id="jobCard" class="job-card">
+        <div class="job-placeholder">
+          <div class="placeholder-icon">
+            💼
+          </div>
+          <p>
+            Open a job posting to analyze it
+            with HireLens.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEARCH JOBS -->
+    <section class="search-section">
+      <div class="section-header">
+        <h2>Find Jobs</h2>
+      </div>
+      <div class="input-group">
+        <label for="keyword">
+          Job Title
+        </label>
+        <input
+          id="keyword"
+          type="text"
+          placeholder="e.g. Software Engineer"
+          value="Software Engineer"
+        />
+      </div>
+      <div class="input-group">
+        <label for="location">
+          Location
+        </label>
+        <input
+          id="location"
+          type="text"
+          placeholder="e.g. Lahore"
+          value="Lahore"
+        />
+      </div>
+      <button
+        id="searchBtn"
+        class="primary-btn"
+      >
+        <span id="searchBtnText">
+          Search Jobs
+        </span>
+      </button>
+    </section>
+
+    <!-- SEARCH RESULTS -->
+    <section
+      id="resultsSection"
+      class="results-section hidden"
+    >
+      <div class="section-header">
+        <h2>Recommended Jobs</h2>
+        <span id="resultCount" class="result-count">
+          0
+        </span>
+      </div>
+      <div id="jobsList" class="jobs-list"></div>
+    </section>
+
+    <!-- MESSAGE -->
+    <div
+      id="message"
+      class="message hidden"
+    ></div>
+    <!-- FOOTER -->
+    <footer class="footer">
+      <span>HireLens</span>
+      <span>AI-powered job discovery</span>
+    </footer>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+
+</body>
+</html>
+
