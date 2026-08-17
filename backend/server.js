@@ -11,7 +11,7 @@ import searchRoutes from "./routes/searchRoutes.js";
 dotenv.config();
 
 const app = express();
-
+app.set("trust proxy", 1);
 // Add security HTTP headers
 app.use(helmet({
   contentSecurityPolicy: {

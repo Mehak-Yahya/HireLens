@@ -5,7 +5,7 @@ import Job from "../models/Job.js";
 import careerSources from "./careerSources.js";
 
 // =====================================================
-// SEARCH ALL JOB SOURCES
+// SEARCH ALL JOB SOURCESs
 // =====================================================
 
 const searchAllSources = async ({ keyword, location }) => {
