@@ -1,17 +1,21 @@
-import indeed from "./indeed.js";
-import linkedin from "./linkedin.js";
-import rozee from "./rozee.js";
+
 import mustakbil from "./mustakbil.js";
 import bayt from "./bayt.js";
 import companyCareers from "./companyCareers.js";
+import greenhouse from "./greenhouse.js";
+import jobListings from "./jobListings.js";
+
+// =====================================================
+// JOB SOURCES
+// =====================================================
 
 const sources = {
-  indeed,
-  linkedin,
-  rozee,
   mustakbil,
   bayt,
-  companyCareers
+  companyCareers,
+  greenhouse,
+  jobListings
 };
 
 export default sources;
+

@@ -274,6 +274,28 @@ const areCitiesCompatible = (requestedLocation = "", actualLocation = "") => {
   return requestedAliases.some((alias) => actualAliases.includes(alias));
 };
 
+const hasExplicitEngineeringRole = (text = "") => {
+  const normalized = normalizeText(text);
+
+  return /\b(software\s+(engineer|developer)|full\s*stack|frontend|backend|web\s+developer|application\s+developer|developer|engineer)\b/i.test(
+    normalized
+  );
+};
+
+const hasQualityAssuranceRole = (text = "") => {
+  const normalized = normalizeText(text);
+
+  return /\b(quality\s+assurance|sqa|qa\s+analyst|qa\s+engineer)\b/i.test(
+    normalized
+  );
+};
+
+const hasRemoteLikeLocation = (text = "") => {
+  const normalized = normalizeText(text);
+
+  return /(remote|hybrid)/.test(normalized);
+};
+
 export const matchesUserRequest = (
   { keyword = "", location = "" },
   title = "",
@@ -336,6 +358,18 @@ export const matchesUserRequest = (
     return false;
   }
 
+  const softwareEngineerQuery = normalizedKeyword.includes("software engineer");
+  const hasEngineerRoleSignal = hasExplicitEngineeringRole(searchableText);
+  const hasQualityAssuranceSignal = hasQualityAssuranceRole(searchableText);
+
+  if (softwareEngineerQuery && hasQualityAssuranceSignal && !hasEngineerRoleSignal) {
+    return false;
+  }
+
+  if (softwareEngineerQuery && !hasEngineerRoleSignal && !hasQualityAssuranceSignal) {
+    return false;
+  }
+
   if (!normalizedLocation || normalizedLocation === "pakistan" || normalizedLocation === "all") {
     return true;
   }
@@ -353,16 +387,21 @@ export const matchesUserRequest = (
     return true;
   }
 
-  if (/(remote|hybrid)/.test(locationText) || /(remote|hybrid)/.test(titleText)) {
+  if (hasRemoteLikeLocation(locationText) || hasRemoteLikeLocation(titleText)) {
     return true;
   }
 
-  return (
+  const locationMatchesRequested =
     areCitiesCompatible(requestedLocation, locationText) ||
     locationText.includes(requestedLocation) ||
     titleText.includes(requestedLocation) ||
-    descriptionText.includes(requestedLocation)
-  );
+    descriptionText.includes(requestedLocation);
+
+  if (!locationMatchesRequested) {
+    return false;
+  }
+
+  return true;
 };
 
 // =====================================================

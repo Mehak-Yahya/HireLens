@@ -112,22 +112,24 @@ const looksLikeJobTitle = (title, keyword) => {
     .toLowerCase()
     .trim();
 
-  // If a user provided a search keyword, require the title to include it
-  // as an exact phrase (whole-word match).
   if (normalizedKeyword) {
-    // Tokenize the keyword and require all tokens to appear as whole words
-    const tokens = normalizedKeyword.split(/\s+/).filter(Boolean);
+    const tokens = normalizedKeyword
+      .split(/\s+/)
+      .filter(Boolean);
 
-    const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapeRegex = (s) =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    return tokens.every((t) => {
-      const tokenRegex = new RegExp(`\\b${escapeRegex(t)}\\b`, "i");
+    return tokens.every((token) => {
+      const tokenRegex = new RegExp(
+        `\\b${escapeRegex(token)}\\b`,
+        "i"
+      );
 
       return tokenRegex.test(normalizedTitle);
     });
   }
 
-  // Otherwise, match known job title keywords.
   return JOB_TITLE_KEYWORDS.some((jobKeyword) =>
     normalizedTitle.includes(jobKeyword)
   );
@@ -140,9 +142,28 @@ const looksLikeJobTitle = (title, keyword) => {
 const looksLikeJobUrl = (url) => {
   const normalizedUrl = url.toLowerCase();
 
-  return JOB_URL_PATTERNS.some((pattern) =>
-    normalizedUrl.includes(pattern)
-  );
+  // Common job URL patterns
+  if (
+    JOB_URL_PATTERNS.some((pattern) =>
+      normalizedUrl.includes(pattern)
+    )
+  ) {
+    return true;
+  }
+
+  // Common job-board URLs
+  if (
+    normalizedUrl.includes("simplicant.com/jobs") ||
+    normalizedUrl.includes("applytojob.com") ||
+    normalizedUrl.includes("workable.com") ||
+    normalizedUrl.includes("lever.co") ||
+    normalizedUrl.includes("greenhouse.io") ||
+    normalizedUrl.includes("myworkdayjobs.com")
+  ) {
+    return true;
+  }
+
+  return false;
 };
 
 // =====================================================
@@ -220,41 +241,63 @@ const extractLocation = ($) => {
     }
   }
 
-  const bodyText = normalizeText($("body").text());
+  const bodyText = normalizeText(
+    $("body").text()
+  );
 
   const locationMatch = bodyText.match(
-    /\b(Lahore|Karachi|Islamabad|Rawalpindi|Peshawar|Faisalabad|Multan|Remote|Hybrid)\b/i
+    /\b(Lahore|Karachi|Islamabad|Rawalpindi|Peshawar|Faisalabad|Multan|Remote|Hybrid|Pakistan)\b/i
   );
 
   if (locationMatch) {
     return locationMatch[1];
   }
 
-  // If no explicit location found on the page, return empty string
   return "";
 };
 
 // =====================================================
-// LOCATION MATCHING HELPERS
+// LOCATION MATCHING
 // =====================================================
 
-const tokenizeLocation = (loc = "") => {
-  return loc
-    .toLowerCase()
-    .replace(/[()]/g, " ")
-    .split(/[,/|\\-]+|\\s+/)
-    .map((t) => t.trim())
-    .filter(Boolean);
-};
-
 const locationMatches = (searchLoc, jobLoc) => {
-  if (!searchLoc || !jobLoc) return false;
+  // No location filter
+  if (!searchLoc) {
+    return true;
+  }
 
-  const s = searchLoc.toLowerCase().trim();
-  const jobTokens = tokenizeLocation(jobLoc);
+  // No detected job location
+  if (!jobLoc) {
+    return false;
+  }
 
-  // direct whole token match
-  return jobTokens.some((t) => t === s);
+  const search = searchLoc
+    .toLowerCase()
+    .trim();
+
+  const job = jobLoc
+    .toLowerCase()
+    .trim();
+
+  // Direct city match
+  if (job.includes(search)) {
+    return true;
+  }
+
+  // Pakistan-wide / remote / hybrid jobs
+  // are relevant when searching Lahore
+  if (
+    search === "lahore" &&
+    (
+      job.includes("pakistan") ||
+      job.includes("remote") ||
+      job.includes("hybrid")
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 };
 
 // =====================================================
@@ -387,9 +430,7 @@ const extractExperienceLevel = (
 // EXTRACT EMPLOYMENT TYPE
 // =====================================================
 
-const extractEmploymentType = (
-  description
-) => {
+const extractEmploymentType = (description) => {
   const text = description.toLowerCase();
 
   if (
@@ -431,7 +472,7 @@ const companyCareers = {
     const jobs = [];
 
     // =================================================
-    // LOOP THROUGH CONFIGURED COMPANIES
+    // LOOP THROUGH COMPANIES
     // =================================================
 
     for (const company of careerSources) {
@@ -486,7 +527,6 @@ const companyCareers = {
             return;
           }
 
-          // Convert relative URL to absolute
           let sourceUrl;
 
           try {
@@ -532,8 +572,7 @@ const companyCareers = {
           const alreadyExists =
             links.some(
               (link) =>
-                link.sourceUrl ===
-                sourceUrl
+                link.sourceUrl === sourceUrl
             );
 
           if (alreadyExists) {
@@ -603,7 +642,8 @@ const companyCareers = {
             // LOCATION
             // =========================================
 
-            const jobLocation = extractLocation(jobPage);
+            const jobLocation =
+              extractLocation(jobPage);
 
             // =========================================
             // SKILLS
@@ -633,10 +673,17 @@ const companyCareers = {
                 description
               );
 
-            // If a location filter was provided, ensure the page's
-            // extracted location matches the requested location.
+            // =========================================
+            // LOCATION FILTER
+            // =========================================
+
             if (location) {
-              if (!locationMatches(location, jobLocation)) {
+              if (
+                !locationMatches(
+                  location,
+                  jobLocation
+                )
+              ) {
                 console.log(
                   `Skipping job due to location mismatch: ${link.title} - found: ${jobLocation}`
                 );
@@ -693,4 +740,3 @@ const companyCareers = {
 };
 
 export default companyCareers;
-

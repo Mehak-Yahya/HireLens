@@ -1,36 +1,93 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
+// Rate limiting and retry constants
+const REQUEST_DELAY_MS = 2000;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5000;
+let lastRequestTime = 0;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const validateInput = (keyword, location) => {
+  if (!keyword || typeof keyword !== "string" || keyword.trim().length === 0) {
+    throw new Error("Invalid keyword: must be non-empty string");
+  }
+  if (location && typeof location !== "string") {
+    throw new Error("Invalid location: must be string");
+  }
+  return true;
+};
+
 const mustakbil = {
   name: "Mustakbil",
 
   async search({ keyword, location }) {
     try {
+      // Validate inputs
+      validateInput(keyword, location);
       console.log(`Mustakbil search: ${keyword} - ${location}`);
+
+      // Apply rate limiting
+      const timeSinceLastRequest = Date.now() - lastRequestTime;
+      if (timeSinceLastRequest < REQUEST_DELAY_MS) {
+        await sleep(REQUEST_DELAY_MS - timeSinceLastRequest);
+      }
+      lastRequestTime = Date.now();
 
       // Currently working Mustakbil public jobs page
       const searchUrl = "https://www.mustakbil.com/jobs/pakistan";
 
-      const response = await axios.get(searchUrl, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151.0.0.0 Safari/537.36",
+      let response;
+      let attempt = 0;
+      
+      while (attempt < MAX_RETRIES) {
+        try {
+          response = await axios.get(searchUrl, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151.0.0.0 Safari/537.36",
 
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 
-          "Accept-Language": "en-US,en;q=0.9"
-        },
+              "Accept-Language": "en-US,en;q=0.9"
+            },
 
-        timeout: 15000
-      });
+            timeout: 15000
+          });
 
-      console.log("Mustakbil status:", response.status);
+          if (!response || response.status !== 200) {
+            console.error("Invalid response status:", response?.status);
+            return [];
+          }
+
+          console.log("Mustakbil status:", response.status);
+          break; // Success, exit retry loop
+        } catch (error) {
+          attempt++;
+          if (attempt >= MAX_RETRIES) throw error;
+          console.warn(`Mustakbil request failed (attempt ${attempt}), retrying...`);
+          await sleep(RETRY_DELAY_MS);
+        }
+      }
 
       const $ = cheerio.load(response.data);
 
       const jobs = [];
       const seenUrls = new Set();
+
+      const extractLocationFromText = (text = "") => {
+        if (!text) {
+          return "";
+        }
+
+        const match = text.match(
+          /\b(Lahore|Karachi|Islamabad|Rawalpindi|Peshawar|Faisalabad|Multan|Remote|Hybrid|Pakistan)\b/i
+        );
+
+        return match ? match[0].trim() : "";
+      };
 
       // =====================================================
       // EXTRACT JOBS
@@ -67,6 +124,14 @@ const mustakbil = {
 
         const card = $(element).closest("article") || $(element).closest(".jc-card");
 
+        const cardText = card.length
+          ? card.text().replace(/\s+/g, " ").trim()
+          : $(element).parent().text().replace(/\s+/g, " ").trim();
+
+        const jobLocation =
+          extractLocationFromText(cardText) ||
+          extractLocationFromText(title);
+
         const company =
           card
             .find(".jc-byline__company")
@@ -98,7 +163,7 @@ const mustakbil = {
 
           company,
 
-          location,
+          location: jobLocation,
 
           employmentType: "",
 
@@ -145,10 +210,7 @@ const mustakbil = {
           "python developer",
           "java developer",
           "php developer",
-          "laravel",
-          "qa",
-          "quality assurance",
-          "sqa"
+          "laravel"
         ],
 
         "associate software engineer": [
@@ -218,6 +280,21 @@ const mustakbil = {
       const filteredJobs = jobs.filter((job) => {
         const title = job.title.toLowerCase();
 
+        if (
+          searchTerm === "software engineer" &&
+          /(quality assurance|sqa|qa analyst|qa engineer)/.test(title) &&
+          !/(software engineer|software developer|developer|engineer|full stack|frontend|backend|node|react|python|java|javascript)/.test(title)
+        ) {
+          return false;
+        }
+
+        if (
+          searchTerm === "software engineer" &&
+          !/(software engineer|software developer|developer|engineer|full stack|frontend|backend|node\.?js|react|python|java|javascript|typescript)/.test(title)
+        ) {
+          return false;
+        }
+
         return terms.some((term) =>
           title.includes(term)
         );
@@ -230,11 +307,16 @@ const mustakbil = {
       return filteredJobs;
 
     } catch (error) {
-      console.error(
-        "Mustakbil search failed:",
-        error.response?.status || error.message
-      );
-
+      const errorMsg = error.response?.status 
+        ? `HTTP ${error.response.status}` 
+        : error.message;
+      console.error(`Mustakbil search failed: ${errorMsg}`);
+      
+      // Don't expose sensitive error details
+      if (error.response?.status === 429) {
+        console.warn("Rate limited by Mustakbil, backing off...");
+      }
+      
       return [];
     }
   }

@@ -8,6 +8,30 @@ const activeScrapes = new Set();
 const makeSearchKey = (keyword, location) =>
   `${keyword.toLowerCase().trim()}|${location.toLowerCase().trim()}`;
 
+// =====================================================
+// INPUT VALIDATION MIDDLEWARE
+// =====================================================
+
+const validateSearchInput = (req, res, next) => {
+  const { keyword, location } = req.body;
+  
+  if (!keyword || typeof keyword !== 'string' || keyword.length > 200 || keyword.trim().length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid keyword: must be non-empty string (max 200 chars)"
+    });
+  }
+  
+  if (!location || typeof location !== 'string' || location.length > 200 || location.trim().length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid location: must be non-empty string (max 200 chars)"
+    });
+  }
+  
+  next();
+};
+
 const startBackgroundScrape = async (searchKey, keyword, location) => {
   if (activeScrapes.has(searchKey)) {
     return;
@@ -37,7 +61,7 @@ const startBackgroundScrape = async (searchKey, keyword, location) => {
 // body: { keyword, location, forceLive(boolean) }
 // =====================================================
 
-router.post("/", async (req, res) => {
+router.post("/", validateSearchInput, async (req, res) => {
   try {
     const { keyword, location, forceLive } = req.body;
 

@@ -1,15 +1,21 @@
-// NORMALIZE TEXT
+
+// =====================================================
+// TEXT NORMALIZATION
+// =====================================================
 
 const normalizeText = (text = "") => {
-  return text
+  return String(text)
     .toLowerCase()
     .replace(/&/g, " and ")
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^a-z0-9\s+#.-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
 
+// =====================================================
 // NORMALIZE JOB TITLE
+// =====================================================
+
 const normalizeTitle = (title = "") => {
   return normalizeText(title)
     .replace(/\bfull time\b/g, "")
@@ -22,7 +28,10 @@ const normalizeTitle = (title = "") => {
     .trim();
 };
 
+// =====================================================
 // NORMALIZE COMPANY
+// =====================================================
+
 const normalizeCompany = (company = "") => {
   return normalizeText(company)
     .replace(
@@ -33,7 +42,10 @@ const normalizeCompany = (company = "") => {
     .trim();
 };
 
+// =====================================================
 // NORMALIZE LOCATION
+// =====================================================
+
 const normalizeLocation = (location = "") => {
   const normalized = normalizeText(location);
 
@@ -76,11 +88,32 @@ const normalizeLocation = (location = "") => {
   return normalized;
 };
 
+// =====================================================
+// NORMALIZE DATE
+// =====================================================
+
+const normalizeDate = (date) => {
+  if (!date) {
+    return null;
+  }
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate;
+};
+
+// =====================================================
 // CREATE JOB KEY
+// =====================================================
+
 const createJobKey = ({
-  title,
-  company,
-  location
+  title = "",
+  company = "",
+  location = ""
 }) => {
   const normalizedTitle =
     normalizeTitle(title);
@@ -91,75 +124,155 @@ const createJobKey = ({
   const normalizedLocation =
     normalizeLocation(location);
 
-  return `${normalizedTitle}|${normalizedCompany}|${normalizedLocation}`;
+  return [
+    normalizedTitle,
+    normalizedCompany,
+    normalizedLocation
+  ].join("|");
 };
 
+// =====================================================
+// NORMALIZE SKILLS
+// =====================================================
+
+const normalizeSkills = (skills = []) => {
+  if (!Array.isArray(skills)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      skills
+        .map((skill) =>
+          String(skill)
+            .trim()
+            .toLowerCase()
+        )
+        .filter(Boolean)
+    )
+  ];
+};
+
+// =====================================================
 // NORMALIZE SINGLE JOB
+// =====================================================
 
 const normalizeJob = (
-  job,
-  sourceName
+  job = {},
+  sourceName = "Unknown"
 ) => {
+  // ---------------------------------------------------
+  // BASIC INFORMATION
+  // ---------------------------------------------------
+
   const title =
-    job.title?.trim() ||
+    String(job.title || "").trim() ||
     "Untitled Position";
 
   const company =
-    job.company?.trim() ||
+    String(job.company || "").trim() ||
     "Unknown Company";
 
   const location =
-    job.location?.trim() ||
+    String(job.location || "").trim() ||
     "Not specified";
+
+  // ---------------------------------------------------
+  // DESCRIPTION
+  // ---------------------------------------------------
 
   const description =
-    job.description?.trim() ||
-    "";
+    String(job.description || "").trim();
+
+  // ---------------------------------------------------
+  // SKILLS
+  // ---------------------------------------------------
 
   const skills =
-    Array.isArray(job.skills)
-      ? job.skills
-          .map((skill) =>
-            String(skill).trim()
-          )
-          .filter(Boolean)
-      : [];
+    normalizeSkills(job.skills);
+
+  // ---------------------------------------------------
+  // EMPLOYMENT TYPE
+  // ---------------------------------------------------
 
   const employmentType =
-    job.employmentType?.trim() ||
+    String(
+      job.employmentType || ""
+    ).trim() ||
     "Not specified";
+
+  // ---------------------------------------------------
+  // EXPERIENCE LEVEL
+  // ---------------------------------------------------
 
   const experienceLevel =
-    job.experienceLevel?.trim() ||
+    String(
+      job.experienceLevel || ""
+    ).trim() ||
     "Not specified";
+
+  // ---------------------------------------------------
+  // SALARY
+  // ---------------------------------------------------
 
   const salary =
-    job.salary?.trim() ||
+    String(
+      job.salary || ""
+    ).trim() ||
     "Not specified";
 
+  // ---------------------------------------------------
+  // SOURCE
+  // ---------------------------------------------------
+
   const source =
-    sourceName ||
-    job.source ||
-    "Unknown";
+    String(
+      sourceName ||
+      job.source ||
+      "Unknown"
+    ).trim();
+
+  // ---------------------------------------------------
+  // SOURCE URL
+  // ---------------------------------------------------
 
   const sourceUrl =
-    job.sourceUrl?.trim() ||
-    "";
+    String(
+      job.sourceUrl ||
+      job.url ||
+      ""
+    ).trim();
+
+  // ---------------------------------------------------
+  // POSTED DATE
+  // ---------------------------------------------------
 
   const postedAt =
-    job.postedAt
-      ? new Date(job.postedAt)
-      : null;
+    normalizeDate(
+      job.postedAt
+    );
+
+  // ---------------------------------------------------
+  // REMOTE STATUS
+  // ---------------------------------------------------
+
+  const remote =
+    Boolean(job.remote);
 
   // ===================================================
-  // CREATE PERMANENT JOB KEY
+  // JOB KEY
   // ===================================================
 
-  const jobKey = createJobKey({
-    title,
-    company,
-    location
-  });
+  const jobKey =
+    createJobKey({
+      title,
+      company,
+      location
+    });
+
+  // ===================================================
+  // FINAL NORMALIZED JOB
+  // ===================================================
 
   return {
     jobKey,
@@ -180,6 +293,8 @@ const normalizeJob = (
 
     salary,
 
+    remote,
+
     source,
 
     sourceUrl,
@@ -194,17 +309,24 @@ const normalizeJob = (
   };
 };
 
+// =====================================================
 // NORMALIZE MULTIPLE JOBS
+// =====================================================
 
 const normalizeJobs = (
-  jobs,
-  sourceName
+  jobs = [],
+  sourceName = "Unknown"
 ) => {
   if (!Array.isArray(jobs)) {
     return [];
   }
 
   return jobs
+    .filter(
+      (job) =>
+        job &&
+        typeof job === "object"
+    )
     .map((job) =>
       normalizeJob(
         job,
@@ -213,14 +335,23 @@ const normalizeJobs = (
     )
     .filter(
       (job) =>
-        job.sourceUrl
+        Boolean(job.sourceUrl)
     );
 };
 
+// =====================================================
 // EXPORTS
+// =====================================================
+
 export {
+  normalizeText,
+  normalizeTitle,
+  normalizeCompany,
+  normalizeLocation,
+  normalizeDate,
+  normalizeSkills,
+  createJobKey,
   normalizeJob,
-  normalizeJobs,
-  createJobKey
+  normalizeJobs
 };
 

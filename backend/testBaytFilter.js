@@ -49,6 +49,46 @@ const cases = [
     location: 'Lahore, Pakistan',
     description: 'Develop residential projects and manage sales.',
     expected: false
+  },
+  {
+    name: 'rejects software QA title even when city matches',
+    input: { keyword: 'software engineer', location: 'Islamabad' },
+    title: 'Software Quality Assurance / SQA Analyst',
+    location: 'Islamabad',
+    description: 'Quality assurance and testing for software products.',
+    expected: false
+  },
+  {
+    name: 'case A rejects software QA in Islamabad for Sahiwal search',
+    input: { keyword: 'software engineer', location: 'Sahiwal' },
+    title: 'Software Quality Assurance / SQA Analyst',
+    location: 'Islamabad',
+    description: 'Quality assurance and testing for software products.',
+    expected: false
+  },
+  {
+    name: 'case B allows remote developer when remote is the job location',
+    input: { keyword: 'software engineer', location: 'Sukkur' },
+    title: 'Sr. Full Stack Node.Js Developer - Remote',
+    location: 'Remote',
+    description: 'Develop web applications remotely.',
+    expected: true
+  },
+  {
+    name: 'case C matches software engineer in Lahore',
+    input: { keyword: 'software engineer', location: 'Lahore' },
+    title: 'Software Engineer',
+    location: 'Lahore',
+    description: 'Build scalable backend and frontend systems.',
+    expected: true
+  },
+  {
+    name: 'case D rejects software engineer in Islamabad for Sahiwal search',
+    input: { keyword: 'software engineer', location: 'Sahiwal' },
+    title: 'Software Engineer',
+    location: 'Islamabad',
+    description: 'Build software systems and APIs.',
+    expected: false
   }
 ];
 

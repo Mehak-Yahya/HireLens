@@ -14,8 +14,7 @@ const jobSchema = new mongoose.Schema(
     jobKey: {
       type: String,
       required: true,
-      trim: true,
-      index: true
+      trim: true
     },
 
     // ===================================================
@@ -176,10 +175,6 @@ jobSchema.index({
 // MODEL
 // =====================================================
 
-const Job = mongoose.model(
-  "Job",
-  jobSchema
-);
+const Job = mongoose.model("Job", jobSchema);
 
 export default Job;
-

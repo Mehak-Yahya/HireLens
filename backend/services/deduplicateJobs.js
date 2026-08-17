@@ -1,275 +1,422 @@
-// TEXT NORMALIZATION
-const normalizeText = (text = "") => {
-  return text
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-};
 
-// NORMALIZE JOB TITLE
+import { createJobKey } from "./jobNormalizer.js";
 
-const normalizeTitle = (title = "") => {
-  let normalized = normalizeText(title);
-
-  // Remove common title variations
-  normalized = normalized
-    .replace(/\bfull time\b/g, "")
-    .replace(/\bpart time\b/g, "")
-    .replace(/\bfulltime\b/g, "")
-    .replace(/\bparttime\b/g, "")
-    .replace(/\bremote\b/g, "")
-    .replace(/\bhybrid\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return normalized;
-};
-
-// NORMALIZE COMPANY
-const normalizeCompany = (company = "") => {
-  return normalizeText(company)
-    .replace(/\b(pvt|private|ltd|limited|inc|llc|technologies|technology|solutions)\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-};
-
-// NORMALIZE LOCATION
-const normalizeLocation = (location = "") => {
-  const normalized = normalizeText(location);
-
-  if (
-    normalized.includes("lahore")
-  ) {
-    return "lahore";
-  }
-
-  if (
-    normalized.includes("karachi")
-  ) {
-    return "karachi";
-  }
-
-  if (
-    normalized.includes("islamabad")
-  ) {
-    return "islamabad";
-  }
-
-  if (
-    normalized.includes("rawalpindi")
-  ) {
-    return "rawalpindi";
-  }
-
-  if (
-    normalized.includes("peshawar")
-  ) {
-    return "peshawar";
-  }
-
-  if (
-    normalized.includes("faisalabad")
-  ) {
-    return "faisalabad";
-  }
-
-  if (
-    normalized.includes("multan")
-  ) {
-    return "multan";
-  }
-
-  if (
-    normalized.includes("remote")
-  ) {
-    return "remote";
-  }
-
-  if (
-    normalized.includes("hybrid")
-  ) {
-    return "hybrid";
-  }
-
-  return normalized;
-};
-
-// CREATE JOB KEY
-
-const createJobKey = (job) => {
-  const title = normalizeTitle(
-    job.title
-  );
-
-  const company = normalizeCompany(
-    job.company
-  );
-
-  const location = normalizeLocation(
-    job.location
-  );
-
-  return `${title}|${company}|${location}`;
-};
-
+// =====================================================
 // MERGE SKILLS
+// =====================================================
 
 const mergeSkills = (
   existingSkills = [],
   newSkills = []
 ) => {
+  const existing = Array.isArray(existingSkills)
+    ? existingSkills
+    : [];
+
+  const incoming = Array.isArray(newSkills)
+    ? newSkills
+    : [];
+
   return [
-    ...new Set([
-      ...existingSkills,
-      ...newSkills
-    ])
+    ...new Set(
+      [...existing, ...incoming]
+        .map((skill) =>
+          String(skill).trim()
+        )
+        .filter(Boolean)
+    )
   ];
 };
 
+// =====================================================
 // MERGE SOURCES
+// =====================================================
 
 const mergeSources = (
   existingSources = [],
   newSources = []
 ) => {
+  const existing = Array.isArray(existingSources)
+    ? existingSources
+    : [];
+
+  const incoming = Array.isArray(newSources)
+    ? newSources
+    : [];
+
   return [
-    ...new Set([
-      ...existingSources,
-      ...newSources
-    ].filter(Boolean))
+    ...new Set(
+      [...existing, ...incoming]
+        .map((source) =>
+          String(source).trim()
+        )
+        .filter(Boolean)
+    )
   ];
 };
 
-// MERGE JOB DATA
+// =====================================================
+// CHECK USEFUL VALUE
+// =====================================================
+
+const hasUsefulValue = (
+  value,
+  placeholder = "Not specified"
+) => {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return false;
+  }
+
+  const normalized =
+    String(value).trim();
+
+  return (
+    normalized !== "" &&
+    normalized.toLowerCase() !==
+      placeholder.toLowerCase()
+  );
+};
+
+// =====================================================
+// MERGE DESCRIPTIONS
+// =====================================================
+
+const mergeDescriptions = (
+  existingDescription = "",
+  newDescription = ""
+) => {
+  const existing =
+    String(existingDescription || "").trim();
+
+  const incoming =
+    String(newDescription || "").trim();
+
+  if (!existing) {
+    return incoming;
+  }
+
+  if (!incoming) {
+    return existing;
+  }
+
+  // Keep the more detailed description.
+  return incoming.length > existing.length
+    ? incoming
+    : existing;
+};
+
+// =====================================================
+// MERGE JOBS
+// =====================================================
 
 const mergeJobs = (
   existingJob,
   newJob
 ) => {
+  const mergedJob = {
+    ...existingJob
+  };
+
+  // ===================================================
   // SOURCES
-  existingJob.sources =
-    mergeSources(
-      existingJob.sources,
-      [
-        existingJob.source,
-        ...(newJob.sources || []),
-        newJob.source
-      ]
-    );
+  // ===================================================
 
+  mergedJob.sources = mergeSources(
+    existingJob.sources,
+    [
+      existingJob.source,
+      ...(newJob.sources || []),
+      newJob.source
+    ]
+  );
+
+  // ===================================================
   // SKILLS
-  existingJob.skills =
-    mergeSkills(
-      existingJob.skills,
-      newJob.skills
+  // ===================================================
+
+  mergedJob.skills = mergeSkills(
+    existingJob.skills,
+    newJob.skills
+  );
+
+  // ===================================================
+  // DESCRIPTION
+  // ===================================================
+
+  mergedJob.description =
+    mergeDescriptions(
+      existingJob.description,
+      newJob.description
     );
 
-  // DESCRIPTION
-  if (
-    (!existingJob.description ||
-      existingJob.description.length < 100) &&
-    newJob.description
-  ) {
-    existingJob.description =
-      newJob.description;
-  }
-
+  // ===================================================
   // EMPLOYMENT TYPE
+  // ===================================================
+
   if (
-    (!existingJob.employmentType ||
-      existingJob.employmentType ===
-        "Not specified") &&
-    newJob.employmentType &&
-    newJob.employmentType !==
-      "Not specified"
+    hasUsefulValue(
+      newJob.employmentType
+    )
   ) {
-    existingJob.employmentType =
-      newJob.employmentType;
+    const existingIsMissing =
+      !hasUsefulValue(
+        existingJob.employmentType
+      );
+
+    if (existingIsMissing) {
+      mergedJob.employmentType =
+        newJob.employmentType;
+    }
   }
 
+  // ===================================================
   // EXPERIENCE LEVEL
+  // ===================================================
+
   if (
-    (!existingJob.experienceLevel ||
-      existingJob.experienceLevel ===
-        "Not specified") &&
-    newJob.experienceLevel &&
-    newJob.experienceLevel !==
-      "Not specified"
+    hasUsefulValue(
+      newJob.experienceLevel
+    )
   ) {
-    existingJob.experienceLevel =
-      newJob.experienceLevel;
+    const existingIsMissing =
+      !hasUsefulValue(
+        existingJob.experienceLevel
+      );
+
+    if (existingIsMissing) {
+      mergedJob.experienceLevel =
+        newJob.experienceLevel;
+    }
   }
 
+  // ===================================================
   // SALARY
+  // ===================================================
 
   if (
-    (!existingJob.salary ||
-      existingJob.salary ===
-        "Not specified") &&
-    newJob.salary &&
-    newJob.salary !==
-      "Not specified"
+    hasUsefulValue(
+      newJob.salary
+    )
   ) {
-    existingJob.salary =
-      newJob.salary;
+    const existingIsMissing =
+      !hasUsefulValue(
+        existingJob.salary
+      );
+
+    if (existingIsMissing) {
+      mergedJob.salary =
+        newJob.salary;
+    }
   }
 
+  // ===================================================
+  // LOCATION
+  // ===================================================
+
+  if (
+    hasUsefulValue(
+      newJob.location,
+      "Not specified"
+    ) &&
+    !hasUsefulValue(
+      existingJob.location,
+      "Not specified"
+    )
+  ) {
+    mergedJob.location =
+      newJob.location;
+  }
+
+  // ===================================================
+  // COMPANY
+  // ===================================================
+
+  if (
+    hasUsefulValue(
+      newJob.company,
+      "Unknown Company"
+    ) &&
+    !hasUsefulValue(
+      existingJob.company,
+      "Unknown Company"
+    )
+  ) {
+    mergedJob.company =
+      newJob.company;
+  }
+
+  // ===================================================
+  // TITLE
+  // ===================================================
+
+  if (
+    hasUsefulValue(
+      newJob.title,
+      "Untitled Position"
+    ) &&
+    !hasUsefulValue(
+      existingJob.title,
+      "Untitled Position"
+    )
+  ) {
+    mergedJob.title =
+      newJob.title;
+  }
+
+  // ===================================================
+  // REMOTE STATUS
+  // ===================================================
+
+  if (
+    newJob.remote === true
+  ) {
+    mergedJob.remote = true;
+  }
+
+  // ===================================================
   // POSTED DATE
+  // ===================================================
+
   if (
     !existingJob.postedAt &&
     newJob.postedAt
   ) {
-    existingJob.postedAt =
+    mergedJob.postedAt =
       newJob.postedAt;
   }
 
+  // ===================================================
   // SOURCE URL
+  // ===================================================
+
   if (
     !existingJob.sourceUrl &&
     newJob.sourceUrl
   ) {
-    existingJob.sourceUrl =
+    mergedJob.sourceUrl =
       newJob.sourceUrl;
   }
 
-  return existingJob;
+  // ===================================================
+  // SCRAPED DATE
+  // ===================================================
+
+  if (
+    newJob.scrapedAt
+  ) {
+    const existingDate =
+      existingJob.scrapedAt
+        ? new Date(
+            existingJob.scrapedAt
+          )
+        : null;
+
+    const newDate =
+      new Date(
+        newJob.scrapedAt
+      );
+
+    if (
+      !existingDate ||
+      (
+        !Number.isNaN(
+          newDate.getTime()
+        ) &&
+        newDate > existingDate
+      )
+    ) {
+      mergedJob.scrapedAt =
+        newJob.scrapedAt;
+    }
+  }
+
+  // ===================================================
+  // ACTIVE STATUS
+  // ===================================================
+
+  if (
+    newJob.isActive === true
+  ) {
+    mergedJob.isActive = true;
+  }
+
+  // ===================================================
+  // KEEP CANONICAL JOB KEY
+  // ===================================================
+
+  mergedJob.jobKey =
+    existingJob.jobKey ||
+    createJobKey(
+      mergedJob
+    );
+
+  return mergedJob;
 };
 
+// =====================================================
 // DEDUPLICATE JOBS
-const deduplicateJobs = (jobs) => {
+// =====================================================
+
+const deduplicateJobs = (
+  jobs = []
+) => {
+  if (!Array.isArray(jobs)) {
+    return [];
+  }
+
   const jobMap = new Map();
 
   for (const job of jobs) {
+    // -------------------------------------------------
+    // INVALID JOB
+    // -------------------------------------------------
+
     if (
       !job ||
+      typeof job !== "object" ||
       !job.title ||
       !job.company
     ) {
       continue;
     }
 
-    const key = createJobKey(job);
+    // -------------------------------------------------
+    // CREATE NORMALIZED KEY
+    // -------------------------------------------------
+
+    const key =
+      job.jobKey ||
+      createJobKey(job);
+
+    // -------------------------------------------------
+    // FIRST OCCURRENCE
+    // -------------------------------------------------
 
     if (!jobMap.has(key)) {
       jobMap.set(key, {
         ...job,
 
+        jobKey: key,
+
         sources: mergeSources(
-          job.sources || [],
+          job.sources,
           [job.source]
         ),
 
-        skills: [
-          ...new Set(
-            job.skills || []
-          )
-        ]
+        skills: mergeSkills(
+          job.skills
+        )
       });
 
       continue;
     }
+
+    // -------------------------------------------------
+    // DUPLICATE FOUND
+    // -------------------------------------------------
 
     const existingJob =
       jobMap.get(key);
@@ -289,6 +436,16 @@ const deduplicateJobs = (jobs) => {
   return Array.from(
     jobMap.values()
   );
+};
+
+// =====================================================
+// EXPORT
+// =====================================================
+
+export {
+  mergeSkills,
+  mergeSources,
+  mergeJobs
 };
 
 export default deduplicateJobs;
