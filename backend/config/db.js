@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 
 const connectDB = async () => {
@@ -12,6 +11,14 @@ const connectDB = async () => {
     console.log(
       `MongoDB database: ${connection.connection.name}`
     );
+
+    console.log(
+      "Jobs currently in database:",
+      await mongoose.connection.db
+        .collection("jobs")
+        .countDocuments()
+    );
+
   } catch (error) {
     console.error(
       "MongoDB connection failed:",
@@ -23,4 +30,3 @@ const connectDB = async () => {
 };
 
 export default connectDB;
-
