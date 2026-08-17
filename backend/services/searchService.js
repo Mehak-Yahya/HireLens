@@ -193,7 +193,7 @@ const saveJobsToDatabase = async (uniqueJobs) => {
       }
 
       // -------------------------------------------------
-      // UPSERT JOB
+      // FIND EXISTING JOB
       // -------------------------------------------------
 
       const existingJob = await Job.findOne({
@@ -201,7 +201,7 @@ const saveJobsToDatabase = async (uniqueJobs) => {
       });
 
       // =================================================
-      // NEW JOB
+      // CREATE NEW JOB
       // =================================================
 
       if (!existingJob) {
@@ -248,7 +248,7 @@ const saveJobsToDatabase = async (uniqueJobs) => {
               ? job.sources
               : [
                   job.source ||
-                    "Unknown"
+                  "Unknown"
                 ],
 
           postedAt:
@@ -271,7 +271,7 @@ const saveJobsToDatabase = async (uniqueJobs) => {
       }
 
       // =================================================
-      // EXISTING JOB
+      // UPDATE EXISTING JOB
       // =================================================
 
       // -------------------------------------------------
@@ -289,14 +289,16 @@ const saveJobsToDatabase = async (uniqueJobs) => {
           ? job.sources
           : [
               job.source ||
-                "Unknown"
+              "Unknown"
             ];
 
       existingJob.sources = [
-        ...new Set([
-          ...existingSources,
-          ...incomingSources
-        ].filter(Boolean))
+        ...new Set(
+          [
+            ...existingSources,
+            ...incomingSources
+          ].filter(Boolean)
+        )
       ];
 
       // -------------------------------------------------
@@ -304,18 +306,15 @@ const saveJobsToDatabase = async (uniqueJobs) => {
       // -------------------------------------------------
 
       if (job.title) {
-        existingJob.title =
-          job.title;
+        existingJob.title = job.title;
       }
 
       if (job.company) {
-        existingJob.company =
-          job.company;
+        existingJob.company = job.company;
       }
 
       if (job.location) {
-        existingJob.location =
-          job.location;
+        existingJob.location = job.location;
       }
 
       // -------------------------------------------------
@@ -364,7 +363,7 @@ const saveJobsToDatabase = async (uniqueJobs) => {
       }
 
       // -------------------------------------------------
-      // EXPERIENCE
+      // EXPERIENCE LEVEL
       // -------------------------------------------------
 
       if (
@@ -442,8 +441,23 @@ const saveJobsToDatabase = async (uniqueJobs) => {
     }
   }
 
+  // =================================================
+  // SAVE RESULT
+  // =================================================
+
   console.log(
     `Database save complete: ${savedCount} saved, ${failedCount} failed`
+  );
+
+  // =================================================
+  // VERIFY DATABASE
+  // =================================================
+
+  const totalJobsInDatabase =
+    await Job.countDocuments();
+
+  console.log(
+    `MongoDB verification: ${totalJobsInDatabase} total jobs currently stored`
   );
 
   return {
@@ -457,3 +471,4 @@ const saveJobsToDatabase = async (uniqueJobs) => {
 // =====================================================
 
 export default searchAllSources;
+
